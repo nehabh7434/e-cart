@@ -2,30 +2,38 @@ require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const session = require('express-session');
+const connectPgSimple = require('connect-pg-simple');
 const bcrypt = require('bcrypt');
-const { Pool } = require('pg');
-const app = express();
-const port = 3000;
+const { initializeDatabase, pool, validateEnvironment } = require('./db');
+validateEnvironment();
 
-const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: process.env.DB_PASSWORD,
-  port: Number(process.env.DB_PORT),
+const app = express();
+const port = Number(process.env.PORT) || 3000;
+const PgSession = connectPgSimple(session);
+const sessionStore = new PgSession({
+  pool,
+  tableName: 'session',
+  createTableIfMissing: false,
 });
 
 app.use(bodyParser.urlencoded({ extended: true }));
 app.set('view engine', 'ejs');
+app.set('trust proxy', process.env.NODE_ENV === 'production' ? 1 : false);
+
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
 
 app.use(session({
   secret: process.env.SESSION_SECRET,
+  store: sessionStore,
   resave: false,
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.COOKIE_SECURE === 'true',
+    maxAge: 24 * 60 * 60 * 1000,
   },
 }));
 
@@ -366,9 +374,18 @@ app.get('/order-confirmation', isAuthenticated, async (req, res) => {
 });
 
 if (require.main === module) {
-  app.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
+  async function startServer() {
+    await initializeDatabase(pool);
+    app.listen(port, '0.0.0.0', () => {
+      console.log(`Server listening on 0.0.0.0:${port}`);
+    });
+  }
+
+  startServer().catch(async (error) => {
+    console.error('Application startup failed:', error.message);
+    await pool.end();
+    process.exitCode = 1;
   });
 }
 
-module.exports = { app, pool };
+module.exports = { app, pool, sessionStore };

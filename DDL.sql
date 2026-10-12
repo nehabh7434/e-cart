@@ -1,24 +1,18 @@
-DROP TABLE IF EXISTS Users CASCADE;
-DROP TABLE IF EXISTS Products CASCADE;
-DROP TABLE IF EXISTS Orders CASCADE;
-DROP TABLE IF EXISTS OrderItems CASCADE;
-DROP TABLE IF EXISTS Cart CASCADE;
-
-CREATE TABLE Users (
+CREATE TABLE IF NOT EXISTS Users (
     user_id SERIAL PRIMARY KEY,
     username VARCHAR(100) NOT NULL,
     email VARCHAR(100) UNIQUE NOT NULL,
     password_hash TEXT NOT NULL
 );
 
-CREATE TABLE Products (
+CREATE TABLE IF NOT EXISTS Products (
     product_id INT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     price DECIMAL(10, 2) NOT NULL,
     stock_quantity INT NOT NULL
 );
 
-CREATE TABLE Orders (
+CREATE TABLE IF NOT EXISTS Orders (
     order_id SERIAL PRIMARY KEY,
     user_id INT NOT NULL,
     order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -26,7 +20,7 @@ CREATE TABLE Orders (
     FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE
 );
 
-CREATE TABLE OrderItems (
+CREATE TABLE IF NOT EXISTS OrderItems (
     order_id INT NOT NULL,
     product_id INT NOT NULL,
     quantity INT NOT NULL,
@@ -36,7 +30,7 @@ CREATE TABLE OrderItems (
     FOREIGN KEY (product_id) REFERENCES Products(product_id) ON DELETE CASCADE
 );
 
-CREATE TABLE Cart (
+CREATE TABLE IF NOT EXISTS Cart (
     user_id INT NOT NULL,
     item_id INT NOT NULL,
     quantity INT NOT NULL CHECK (quantity > 0),
@@ -45,7 +39,7 @@ CREATE TABLE Cart (
     FOREIGN KEY (item_id) REFERENCES Products(product_id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_cart_item_id ON Cart(item_id);
-CREATE INDEX idx_orders_user_date ON Orders(user_id, order_date DESC);
-CREATE INDEX idx_orders_date ON Orders(order_date DESC);
-CREATE INDEX idx_orderitems_product_id ON OrderItems(product_id);
+CREATE INDEX IF NOT EXISTS idx_cart_item_id ON Cart(item_id);
+CREATE INDEX IF NOT EXISTS idx_orders_user_date ON Orders(user_id, order_date DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_date ON Orders(order_date DESC);
+CREATE INDEX IF NOT EXISTS idx_orderitems_product_id ON OrderItems(product_id);
