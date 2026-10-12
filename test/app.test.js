@@ -2,6 +2,7 @@ const request = require('supertest');
 const bcrypt = require('bcrypt');
 const { app, pool, sessionStore } = require('../app');
 const { getPoolConfig, initializeDatabase, validateEnvironment } = require('../db');
+const { seedProducts } = require('../scripts/seed-products');
 
 const products = [
   { id: 1, name: 'Test Phone', price: '125.50', stock: 8 },
@@ -276,6 +277,28 @@ describe('signup and authentication', () => {
     expect(savedUser.rows).toEqual([{ email: user.email }]);
     expect(sessionTable.rows[0].table_name).toBe('session');
     expect(sessionTable.rows[0].index_exists).toBe(true);
+  });
+
+  test('demo product seeding is repeatable and does not overwrite existing products', async () => {
+    const firstRunCount = await seedProducts(pool);
+    const secondRunCount = await seedProducts(pool);
+    const result = await pool.query(
+      'SELECT product_id, name, price, stock_quantity FROM products ORDER BY product_id'
+    );
+
+    expect(firstRunCount).toBe(2);
+    expect(secondRunCount).toBe(0);
+    expect(result.rows).toHaveLength(5);
+    expect(result.rows[0]).toEqual({
+      product_id: 1,
+      name: 'Test Phone',
+      price: '125.50',
+      stock_quantity: 8,
+    });
+    expect(result.rows.slice(3)).toEqual([
+      { product_id: 4, name: 'Microwave', price: '199.99', stock_quantity: 25 },
+      { product_id: 5, name: 'T-Shirt', price: '19.99', stock_quantity: 100 },
+    ]);
   });
 
   test('trims the username and normalizes the email on signup', async () => {

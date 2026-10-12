@@ -6,7 +6,8 @@
     "start": "node app.js",
     "test": "node scripts/prepare-test-db.js",
     "benchmark": "node scripts/benchmark.js",
-    "db:init": "node scripts/init-db.js"
+    "db:init": "node scripts/init-db.js",
+    "db:seed": "node scripts/seed-products.js"
   },
   "keywords": [],
   "author": "",

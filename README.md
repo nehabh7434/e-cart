@@ -72,6 +72,14 @@ npm run db:init
 
 The command creates missing tables and indexes only; it does not seed products, delete tables, or reset data. Configure the target `DATABASE_URL` in the shell's environment before running it, and do not put the actual connection string directly in a command or commit it. Schema changes that alter existing columns should be handled with a reviewed migration rather than relying on `CREATE TABLE IF NOT EXISTS`.
 
+Sample product seeding is a separate, manual operation and never runs during app startup. To seed the deployed Neon database, open the **Shell** page for the correct Render web service and run:
+
+```sh
+npm run db:seed
+```
+
+The command uses the service's configured `DATABASE_URL`; verify in the Render dashboard that it targets the intended Neon project before running it. Do not paste the URL into a command, source file, or chat. The seed inserts five demo products using the existing `product_id`, `name`, `price`, and `stock_quantity` columns. It uses `ON CONFLICT (product_id) DO NOTHING`, so reruns do not add duplicates or modify an existing product, and it does not touch users, carts, or orders.
+
 Render's reverse proxy is trusted for one hop only. This is needed for Express to use Render's forwarded HTTPS information when sending `Secure` cookies. Setting a broader trust policy can allow spoofed forwarded headers to affect security-sensitive request properties.
 
 ### Required Render environment variables
