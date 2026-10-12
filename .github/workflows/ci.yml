@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ecart_test
+          # Disposable credentials for the ephemeral CI database service only.
+          POSTGRES_PASSWORD: ecart_ci_only_password
+          POSTGRES_DB: ecart_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ecart_test -d ecart_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DB_USER: ecart_test
+      DB_HOST: localhost
+      DB_NAME: ecart_ci
+      DB_PASSWORD: ecart_ci_only_password
+      DB_PORT: 5432
+      TEST_DB_USER: ecart_test
+      TEST_DB_HOST: localhost
+      TEST_DB_PASSWORD: ecart_ci_only_password
+      TEST_DB_PORT: 5432
+      TEST_DB_NAME: ecart_test_ci
+      TEST_DB_ADMIN_DATABASE: postgres
+      SESSION_SECRET: ci-only-session-secret
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Validate Docker build
+        run: docker build --tag ecart-app:ci .
