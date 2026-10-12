@@ -2,6 +2,7 @@ require('dotenv').config();
 const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
+const { randomBytes } = require('crypto');
 
 function getConnectionOptions(database) {
   return {
@@ -51,7 +52,7 @@ async function main() {
   process.env.DB_PASSWORD = process.env.TEST_DB_PASSWORD || process.env.DB_PASSWORD;
   process.env.DB_PORT = process.env.TEST_DB_PORT || process.env.DB_PORT;
   process.env.DB_NAME = databaseName;
-  process.env.SESSION_SECRET = 'jest-supertest-session-secret';
+  process.env.SESSION_SECRET ||= randomBytes(32).toString('hex');
   process.env.NODE_ENV = 'test';
 
   const { runCLI } = require('jest');
