@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Order Confirmation</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(to right, #ece9e6, #ffffff);
+    }
+
+    header {
+      background-color: #0d6efd;
+      color: white;
+      padding: 20px 0;
+      text-align: center;
+      font-size: 28px;
+      font-weight: bold;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 60px auto;
+      background-color: #fff;
+      border-radius: 10px;
+      padding: 40px 30px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+      text-align: center;
+    }
+
+    h2 {
+      color: #28a745;
+      margin-bottom: 20px;
+    }
+
+    p {
+      font-size: 18px;
+      color: #333;
+    }
+
+    .back-link {
+      margin-top: 30px;
+    }
+
+    .back-link a {
+      text-decoration: none;
+      color: #0d6efd;
+      font-weight: 600;
+    }
+
+    .back-link a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+  <header>✅ Order Placed</header>
+
+  <div class="container">
+    <h2>Thank you for your order!</h2>
+    <p>Your order has been successfully placed.</p>
+    <p>You'll receive a confirmation email shortly (if configured).</p>
+
+    <div class="back-link">
+      <a href="/dashboard">← Return to Dashboard</a>
+    </div>
+  </div>
+
+</body>
+</html>

@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Your Cart</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(to right, #ece9e6, #ffffff);
+    }
+
+    header {
+      background-color: #0d6efd;
+      color: white;
+      padding: 20px 0;
+      text-align: center;
+      font-size: 28px;
+      font-weight: bold;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 50px auto;
+      background-color: #fff;
+      border-radius: 10px;
+      padding: 30px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    h2 {
+      text-align: center;
+      color: #333;
+      margin-bottom: 25px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: center;
+    }
+
+    th, td {
+      padding: 12px;
+      border: 1px solid #ccc;
+    }
+
+    th {
+      background-color: #f5f5f5;
+      color: #333;
+    }
+
+    .empty-message {
+      text-align: center;
+      color: #888;
+      margin-top: 20px;
+    }
+
+    .back-link {
+      text-align: center;
+      margin-top: 25px;
+    }
+
+    .back-link a {
+      text-decoration: none;
+      color: #0d6efd;
+      font-weight: 600;
+    }
+
+    .back-link a:hover {
+      text-decoration: underline;
+    }
+
+    .checkout-section {
+      text-align: center;
+      margin-top: 25px;
+    }
+
+    .checkout-btn {
+      padding: 12px 24px;
+      background-color: #28a745;
+      color: white;
+      font-size: 16px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    .checkout-btn:hover {
+      background-color: #218838;
+    }
+
+    .checkout-btn:disabled {
+      background-color: #94d3a2;
+      cursor: not-allowed;
+    }
+
+    .checkout-message {
+      margin-bottom: 15px;
+      padding: 12px;
+      border-radius: 5px;
+      font-weight: 600;
+    }
+
+    .checkout-message.error {
+      background-color: #f8d7da;
+      color: #842029;
+      border: 1px solid #f5c2c7;
+    }
+  </style>
+</head>
+<body>
+
+  <header>🧺 Your Shopping Cart</header>
+
+  <div class="container">
+    <h2>Cart Items</h2>
+
+    <% if (cartItems.length === 0) { %>
+      <p class="empty-message">Your cart is empty.</p>
+    <% } else { %>
+      <table>
+        <thead>
+          <tr>
+            <th>Product ID</th>
+            <th>Name</th>
+            <th>Quantity</th>
+            <th>Price (₹)</th>
+            <th>Total (₹)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% cartItems.forEach(item => { %>
+            <tr>
+              <td><%= item.product_id %></td>
+              <td><%= item.name %></td>
+              <td><%= item.quantity %></td>
+              <td><%= item.price %></td>
+              <td><%= item.quantity * item.price %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+
+      <div class="checkout-section">
+        <div id="checkout-message" class="checkout-message error" hidden></div>
+        <form id="place-order-form" action="/place-order" method="POST">
+          <button type="submit" class="checkout-btn">Place Order</button>
+        </form>
+      </div>
+    <% } %>
+
+    <div class="back-link">
+      <a href="/dashboard">← Back to Dashboard</a>
+    </div>
+  </div>
+
+  <script>
+    const placeOrderForm = document.getElementById('place-order-form');
+    if (placeOrderForm) {
+      placeOrderForm.addEventListener('submit', async function (e) {
+        e.preventDefault();
+
+        const message = document.getElementById('checkout-message');
+        const button = this.querySelector('button');
+
+        button.disabled = true;
+        message.hidden = true;
+
+        try {
+          const response = await fetch('/place-order', {
+            method: 'POST',
+            credentials: 'same-origin',
+            redirect: 'manual'
+          });
+
+          if (response.status === 302) {
+            window.location.href = response.headers.get('Location') || '/order-confirmation';
+            return;
+          }
+
+          const text = await response.text();
+          message.textContent = text || 'Failed to place order';
+          message.hidden = false;
+        } catch (err) {
+          message.textContent = 'Failed to place order. Please try again.';
+          message.hidden = false;
+        } finally {
+          button.disabled = false;
+        }
+      });
+    }
+  </script>
+
+</body>
+</html>

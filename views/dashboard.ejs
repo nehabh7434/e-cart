@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Dashboard</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(to right, #ece9e6, #ffffff);
+    }
+
+    header {
+      background-color: #0d6efd;
+      color: white;
+      padding: 20px 0;
+      text-align: center;
+      font-size: 28px;
+      font-weight: bold;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 60px auto;
+      background-color: #fff;
+      border-radius: 10px;
+      padding: 30px 40px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+      text-align: center;
+    }
+
+    h2 {
+      color: #333;
+      margin-bottom: 25px;
+    }
+
+    ul {
+      list-style-type: none;
+      padding: 0;
+    }
+
+    li {
+      margin: 15px 0;
+    }
+
+    a {
+      text-decoration: none;
+      color: #0d6efd;
+      font-weight: 600;
+      font-size: 18px;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+  <header>🧭 User Dashboard</header>
+
+  <div class="container">
+    <h2>Welcome! What would you like to do?</h2>
+    <ul>
+      <li><a href="/list-products">🛍️ List Products</a></li>
+      <li><a href="/add-to-cart">➕ Add to Cart</a></li>
+      <li><a href="/remove-from-cart">➖ Remove from Cart</a></li>
+      <li><a href="/display-cart">🧺 Display Cart</a></li>
+      <li><a href="/logout">🚪 Logout</a></li>
+    </ul>
+  </div>
+
+</body>
+</html>
