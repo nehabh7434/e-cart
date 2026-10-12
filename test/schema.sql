@@ -34,6 +34,14 @@ CREATE TABLE IF NOT EXISTS cart (
     PRIMARY KEY (user_id, item_id)
 );
 
+CREATE TABLE IF NOT EXISTS "session" (
+    "sid" VARCHAR NOT NULL,
+    "sess" JSON NOT NULL,
+    "expire" TIMESTAMP(6) NOT NULL,
+    CONSTRAINT "session_pkey" PRIMARY KEY ("sid")
+);
+
+CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
 CREATE INDEX IF NOT EXISTS idx_cart_item_id ON cart(item_id);
 CREATE INDEX IF NOT EXISTS idx_orders_user_date ON orders(user_id, order_date DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_date ON orders(order_date DESC);

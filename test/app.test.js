@@ -1,6 +1,7 @@
 const request = require('supertest');
 const bcrypt = require('bcrypt');
-const { app, pool } = require('../app');
+const { app, pool, sessionStore } = require('../app');
+const { getPoolConfig, initializeDatabase, validateEnvironment } = require('../db');
 
 const products = [
   { id: 1, name: 'Test Phone', price: '125.50', stock: 8 },
@@ -13,6 +14,19 @@ let emailNumber = 0;
 function freshEmail() {
   emailNumber += 1;
   return `buyer${emailNumber}@example.test`;
+}
+
+function failNextQuery(matcher, message = 'database unavailable') {
+  const originalQuery = pool.query.bind(pool);
+  let shouldFail = true;
+  jest.spyOn(pool, 'query').mockImplementation((...args) => {
+    const queryText = typeof args[0] === 'string' ? args[0] : args[0]?.text;
+    if (shouldFail && matcher.test(queryText || '')) {
+      shouldFail = false;
+      return Promise.reject(new Error(message));
+    }
+    return originalQuery(...args);
+  });
 }
 
 async function register(agent = request.agent(app), details = {}) {
@@ -61,10 +75,79 @@ afterEach(() => {
 });
 
 afterAll(async () => {
+  await sessionStore.close();
   await pool.end();
 });
 
+describe('database configuration', () => {
+  test('uses verified TLS for Neon URLs and preserves other query parameters', () => {
+    const config = getPoolConfig({
+      DATABASE_URL: 'postgresql://app:password@ep-example.neon.tech/ecart?sslmode=require&channel_binding=require',
+    });
+    const url = new URL(config.connectionString);
+
+    expect(config.ssl).toEqual({ rejectUnauthorized: true });
+    expect(url.searchParams.get('sslmode')).toBeNull();
+    expect(url.searchParams.get('channel_binding')).toBe('require');
+  });
+
+  test.each([
+    'sslmode=disable',
+    'sslmode=prefer',
+    'sslmode=no-verify',
+    'ssl=no-verify',
+    'ssl=false',
+  ])(
+    'rejects weakened TLS option %s in a database URL',
+    (sslOption) => {
+      expect(() => getPoolConfig({
+        DATABASE_URL: `postgresql://app:password@ep-example.neon.tech/ecart?${sslOption}`,
+      })).toThrow('must not disable or weaken TLS certificate verification');
+    }
+  );
+
+  test('preserves discrete local database settings', () => {
+    const config = getPoolConfig({
+      DB_USER: 'ecart',
+      DB_PASSWORD: 'local-password',
+      DB_HOST: 'localhost',
+      DB_NAME: 'ecart',
+    });
+
+    expect(config).toMatchObject({
+      user: 'ecart',
+      password: 'local-password',
+      host: 'localhost',
+      database: 'ecart',
+      port: 5432,
+    });
+    expect(config.connectionString).toBeUndefined();
+  });
+
+  test('requires HTTPS settings and a strong session secret in production', () => {
+    const productionEnv = {
+      NODE_ENV: 'production',
+      DATABASE_URL: 'postgresql://app:password@ep-example.neon.tech/ecart',
+      SESSION_SECRET: 'a-production-session-secret-at-least-32-bytes',
+      COOKIE_SECURE: 'true',
+    };
+
+    expect(() => validateEnvironment(productionEnv)).not.toThrow();
+    expect(() => validateEnvironment({ ...productionEnv, COOKIE_SECURE: 'false' }))
+      .toThrow('COOKIE_SECURE=true is required in production');
+    expect(() => validateEnvironment({ ...productionEnv, SESSION_SECRET: 'short' }))
+      .toThrow('at least 32 bytes in production');
+  });
+});
+
 describe('public pages and product listing', () => {
+  test('serves a lightweight health response without creating a session', async () => {
+    const response = await request(app).get('/health');
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ status: 'ok' });
+    expect(response.headers['set-cookie']).toBeUndefined();
+  });
+
   test('renders the public login page from the home route', async () => {
     const response = await request(app).get('/');
     expect(response.status).toBe(200);
@@ -80,7 +163,7 @@ describe('public pages and product listing', () => {
   });
 
   test('returns a server error when the public catalog query fails', async () => {
-    jest.spyOn(pool, 'query').mockRejectedValueOnce(new Error('database unavailable'));
+    failNextQuery(/SELECT \* FROM Products/i);
     const response = await request(app).get('/');
     expect(response.status).toBe(500);
     expect(response.text).toBe('Server error');
@@ -156,6 +239,45 @@ describe('signup and authentication', () => {
     expect((await agent.get('/dashboard')).status).toBe(200);
   });
 
+  test('persists authenticated sessions in PostgreSQL with HTTP-only cookie attributes', async () => {
+    const { agent, user, response } = await register();
+    expect(response.status).toBe(302);
+
+    const sessionCookie = response.headers['set-cookie'][0];
+    expect(sessionCookie).toContain('HttpOnly');
+    expect(sessionCookie).toContain('SameSite=Lax');
+    expect(sessionCookie).toContain('Expires=');
+    expect(sessionCookie).not.toContain('; Secure');
+
+    const storedSession = await pool.query(
+      `SELECT sess->>'userId' AS user_id
+       FROM "session"
+       WHERE expire > NOW() AND sess->>'userId' = $1
+       LIMIT 1`,
+      [String(user.userId)]
+    );
+    expect(storedSession.rows).toEqual([{ user_id: String(user.userId) }]);
+    expect((await agent.get('/dashboard')).status).toBe(200);
+  });
+
+  test('database initialization is repeatable and preserves existing records', async () => {
+    const user = await createUser();
+    await initializeDatabase(pool);
+    await initializeDatabase(pool);
+
+    const savedUser = await pool.query('SELECT email FROM users WHERE user_id = $1', [user.userId]);
+    const sessionTable = await pool.query(
+      `SELECT to_regclass('public.session') AS table_name,
+              EXISTS (
+                SELECT 1 FROM pg_indexes
+                WHERE schemaname = 'public' AND indexname = 'IDX_session_expire'
+              ) AS index_exists`
+    );
+    expect(savedUser.rows).toEqual([{ email: user.email }]);
+    expect(sessionTable.rows[0].table_name).toBe('session');
+    expect(sessionTable.rows[0].index_exists).toBe(true);
+  });
+
   test('trims the username and normalizes the email on signup', async () => {
     const email = `MiXeD${emailNumber}@Example.Test`;
     const { response } = await register(request.agent(app), {
@@ -181,7 +303,7 @@ describe('signup and authentication', () => {
   });
 
   test('rejects signup when the database insert fails', async () => {
-    jest.spyOn(pool, 'query').mockRejectedValueOnce(new Error('database unavailable'));
+    failNextQuery(/INSERT INTO users/i);
     const response = await request(app).post('/signup').type('form').send({
       username: 'Buyer',
       email: 'db-error@example.test',
@@ -247,7 +369,7 @@ describe('signup and authentication', () => {
   });
 
   test('returns a safe server error when the login query fails', async () => {
-    jest.spyOn(pool, 'query').mockRejectedValueOnce(new Error('database unavailable'));
+    failNextQuery(/SELECT \* FROM users WHERE email/i);
     const response = await request(app).post('/login').type('form').send({
       email: 'buyer@example.test',
       password: 'secure-pass-123',
@@ -292,7 +414,7 @@ describe('authorization and product routes', () => {
 
   test('returns an error when the authenticated product query fails', async () => {
     const { agent } = await register();
-    jest.spyOn(pool, 'query').mockRejectedValueOnce(new Error('database unavailable'));
+    failNextQuery(/SELECT \* FROM products ORDER BY product_id/i);
     const response = await agent.get('/list-products');
     expect(response.status).toBe(500);
     expect(response.text).toBe('Error loading products');
@@ -409,7 +531,7 @@ describe('cart behavior', () => {
 
   test('returns a safe server error when adding to cart fails', async () => {
     const { agent } = await register();
-    jest.spyOn(pool, 'query').mockRejectedValueOnce(new Error('database unavailable'));
+    failNextQuery(/SELECT \* FROM products WHERE product_id/i);
     const response = await agent.post('/add-to-cart').type('form').send({
       product_id: '1',
       quantity: '1',
@@ -436,7 +558,7 @@ describe('cart behavior', () => {
 
   test('returns a safe server error when loading the cart fails', async () => {
     const { agent } = await register();
-    jest.spyOn(pool, 'query').mockRejectedValueOnce(new Error('database unavailable'));
+    failNextQuery(/SELECT c\.item_id AS product_id, p\.name, p\.price, c\.quantity/i);
     const response = await agent.get('/display-cart');
     expect(response.status).toBe(500);
     expect(response.text).toBe('Failed to load cart');
@@ -454,7 +576,7 @@ describe('cart behavior', () => {
 
   test('returns a safe error when loading removable items fails', async () => {
     const { agent } = await register();
-    jest.spyOn(pool, 'query').mockRejectedValueOnce(new Error('database unavailable'));
+    failNextQuery(/SELECT c\.item_id AS product_id, p\.name\s+FROM cart/i);
     const response = await agent.get('/remove-from-cart');
     expect(response.status).toBe(500);
     expect(response.text).toBe('Error loading cart items');
@@ -488,7 +610,7 @@ describe('cart behavior', () => {
 
   test('returns a safe error when the remove query fails', async () => {
     const { agent } = await register();
-    jest.spyOn(pool, 'query').mockRejectedValueOnce(new Error('database unavailable'));
+    failNextQuery(/SELECT 1 FROM cart WHERE user_id/i);
     const response = await agent.post('/remove-from-cart').type('form').send({ product_id: '1' });
     expect(response.status).toBe(500);
     expect(response.text).toBe('Error removing item');
@@ -584,7 +706,11 @@ describe('checkout transactions and stock safety', () => {
 
   test('handles a checkout connection failure without crashing the route', async () => {
     const { agent } = await register();
-    jest.spyOn(pool, 'connect').mockRejectedValueOnce(new Error('connection unavailable'));
+    const realConnect = pool.connect.bind(pool);
+    jest.spyOn(pool, 'connect').mockImplementation((callback) => {
+      if (typeof callback === 'function') return realConnect(callback);
+      return Promise.reject(new Error('connection unavailable'));
+    });
     const response = await agent.post('/place-order');
     expect(response.status).toBe(500);
     expect(response.text).toBe('Failed to place order');
@@ -594,14 +720,16 @@ describe('checkout transactions and stock safety', () => {
     const { agent } = await register();
     const realConnect = pool.connect.bind(pool);
     const releaseSpy = jest.fn();
-    jest.spyOn(pool, 'connect').mockImplementation(async () => {
-      const client = await realConnect();
-      const realRelease = client.release.bind(client);
-      client.release = () => {
-        releaseSpy();
-        realRelease();
-      };
-      return client;
+    jest.spyOn(pool, 'connect').mockImplementation((callback) => {
+      if (typeof callback === 'function') return realConnect(callback);
+      return realConnect().then((client) => {
+        const realRelease = client.release.bind(client);
+        client.release = () => {
+          releaseSpy();
+          realRelease();
+        };
+        return client;
+      });
     });
     const response = await agent.post('/place-order');
     expect(response.status).toBe(400);

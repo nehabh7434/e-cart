@@ -53,6 +53,7 @@ async function main() {
   process.env.DB_PORT = process.env.TEST_DB_PORT || process.env.DB_PORT;
   process.env.DB_NAME = databaseName;
   process.env.SESSION_SECRET ||= randomBytes(32).toString('hex');
+  process.env.COOKIE_SECURE = 'false';
   process.env.NODE_ENV = 'test';
 
   const { runCLI } = require('jest');

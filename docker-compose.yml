@@ -30,7 +30,7 @@ services:
       DB_PORT: 5432
       SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET in .env or the environment}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
-      NODE_ENV: production
+      NODE_ENV: development
     ports:
       - "${APP_PORT:-3000}:3000"
 

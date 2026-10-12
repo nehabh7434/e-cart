@@ -38,6 +38,7 @@ jobs:
       TEST_DB_NAME: ecart_test_ci
       TEST_DB_ADMIN_DATABASE: postgres
       SESSION_SECRET: ci-only-session-secret
+      COOKIE_SECURE: 'false'
       NODE_ENV: test
     steps:
       - uses: actions/checkout@v4
