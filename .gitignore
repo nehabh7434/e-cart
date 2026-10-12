@@ -15,6 +15,12 @@ npm-debug.log*
 *.dump
 *.backup
 *.sql.gz
+*.sql
+!DDL.sql
+!indexes.sql
+!session.sql
+!data.sql
+!test/schema.sql
 *.sqlite
 *.sqlite3
 *.pem
